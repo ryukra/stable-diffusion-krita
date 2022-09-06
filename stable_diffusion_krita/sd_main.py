@@ -93,7 +93,7 @@ class SDParameters:
     num =0
     sampling_method=0
     seedList =["","","",""]
-    imageDialog = NULL
+    imageDialog = None
     regenerate = False
     image64=""
     maskImage64=""
