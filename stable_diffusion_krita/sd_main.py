@@ -40,7 +40,7 @@ class SDConfig:
     url = "http://localhost:7860"
     type="Colab"
     inpaint_mask_blur=4
-    inpaint_mask_content="latent noise"     
+    inpaint_mask_content=2     
     width=512
     height=512    
     dlgData={
@@ -53,7 +53,7 @@ class SDConfig:
         "modifiers": "highly detailed\n",
         "cfg_value": 7.5,
         "strength": .75,
-        "sampling_method":"LMS"
+        "sampling_method":0
     }
 
 
@@ -70,7 +70,7 @@ class SDConfig:
         self.type=obj.get("type","Colab")
         self.dlgData=obj["dlgData"]
         self.inpaint_mask_blur=obj.get("inpaint_mask_blur",4)
-        self.inpaint_mask_content=obj.get("inpaint_mask_content","latent noise")
+        self.inpaint_mask_content=obj.get("inpaint_mask_content",2)
         self.width=obj.get("width",512)
         self.height=obj.get("height",512)
     def save(self):
@@ -91,15 +91,16 @@ class SDParameters:
     steps = 0
     seed = 0
     num =0
-    sampling_method="LMS",
+    sampling_method=0
     seedList =["","","",""]
-    imageDialog = None
+    imageDialog = NULL
     regenerate = False
     image64=""
     maskImage64=""
-    sampling_method="LMS"
+    cfg_value=7.5
+    strength=0.0
     inpaint_mask_blur=4
-    inpaint_mask_content="latent noise" 
+    inpaint_mask_content=2 
     mode="txt2img"    
 
 def errorMessage(text,detailed):
@@ -136,7 +137,6 @@ class SDConfigDialog(QDialog):
 
         self.layout.addWidget(QLabel(''))
         
-
         inpainting_label=QLabel('Inpainting options')
         inpainting_label.setToolTip('You can play around with these two values. Default is 4 and "latent noise"')
         self.layout.addWidget(inpainting_label)
@@ -149,7 +149,7 @@ class SDConfigDialog(QDialog):
         h_layout_inpaint.addWidget(QLabel('Masked Content:'),stretch=1)
         self.inpaint_mask_content = QComboBox()
         self.inpaint_mask_content.addItems(['fill', 'original', 'latent noise', 'latent nothing'])
-        self.inpaint_mask_content.setCurrentText(SDConfig.inpaint_mask_content)
+        self.inpaint_mask_content.setCurrentIndex(SDConfig.inpaint_mask_content)
         h_layout_inpaint.addWidget(self.inpaint_mask_content,stretch=1)      
         h_layout_inpaint.addWidget(QLabel(''),stretch=5)
 
@@ -178,7 +178,7 @@ class SDConfigDialog(QDialog):
     def save(self):
         SDConfig.url=self.url.text()
         SDConfig.inpaint_mask_blur=int(self.inpaint_mask_blur.text())
-        SDConfig.inpaint_mask_content=self.inpaint_mask_content.currentText()
+        SDConfig.inpaint_mask_content=self.inpaint_mask_content.currentIndex()
         SDConfig.width=int(self.width.text())
         SDConfig.height=int(self.height.text())
         SDConfig.type=self.type.currentText()
@@ -337,8 +337,8 @@ class SDDialog(QDialog):
         cfg_label.setToolTip("")
         formLayout.addWidget(cfg_label)           
         self.sampling_method = QComboBox()
-        self.sampling_method.addItems(['LMS', 'Euler a', 'Euler', 'Heun','DPM2','DPM2 a','DDIM','PLMS'])
-        self.sampling_method.setCurrentText(data.get("sampling_method","LMS"))
+        self.sampling_method.addItems(['Euler a', 'Euler','LMS', 'Heun','DPM2','DPM2 a','DDIM','PLMS'])
+        self.sampling_method.setCurrentIndex(data.get("sampling_method", 0))
         formLayout.addWidget(self.sampling_method)           
         formLayout.addWidget(QLabel(""))        
         formLayout.addWidget(self.buttonBox)
@@ -374,7 +374,7 @@ class SDDialog(QDialog):
         SDConfig.dlgData["num"]=int(self.num.value())
         SDConfig.dlgData["cfg_value"]=self.cfg_value.value()/10
         SDConfig.dlgData["modifiers"]=self.modifiers.toPlainText()
-        SDConfig.dlgData["sampling_method"]=self.sampling_method.currentText()
+        SDConfig.dlgData["sampling_method"]=self.sampling_method.currentIndex()
         
         if SDConfig.dlgData["mode"]=="img2img": 
             SDConfig.dlgData["strength"]=self.strength.value()/100
@@ -512,11 +512,12 @@ def imageResultDialog(qImgs,p):
     dlg = showImages(qImgs,p)
     if dlg.exec():
         print("HQ Update here")
-
+    else:
+        print("Cancel!")
+    return 3     
  
  # convert image from server result into QImage
 def base64ToQImage(data):
-     data=data.split(",")[1] # get rid of data:image/png,
      image64 = data.encode('ascii')
      imagen = QtGui.QImage()
      bytearr = QtCore.QByteArray.fromBase64( image64 )
@@ -526,7 +527,7 @@ def base64ToQImage(data):
 def getServerData(reqData):
     endpoint=SDConfig.url
     endpoint=endpoint.strip("/")
-    endpoint+="/api/predict/" 
+    endpoint+="/api/" 
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -545,7 +546,6 @@ def getServerData(reqData):
         errorMessage("Server Error","Endpoint: "+endpoint+", Reason: "+error_message)        
         return None
 
-
 def runSD(p: SDParameters):
     # dramatic interface change needed!
     Colab=True
@@ -553,48 +553,26 @@ def runSD(p: SDParameters):
   
     if (not p.seed): seed=-1
     else: seed=int(p.seed)
-
-    if (p.mode=="img2img"):
-        # localhost
-        j={
-            "fn_index":8,
-            "data":[p.prompt,p.image64,{"image":p.image64,"mask":p.image64},p.steps,p.sampling_method,4,"latent noise",False,"Redraw whole image",
-                    p.num,1,p.cfg_value,p.strength,seed,SDConfig.height,SDConfig.width,"Just resize","RealESRGAN",64,True,
-                    "Inpaint masked","None",8,4,"fill",False,"Seed","","Steps",""
-            ]
-        }
-        # colab
-        if (Colab):
-            j={
-                "fn_index":8,
-                "data":[p.prompt,p.image64,None,p.steps,p.sampling_method,4,"latent noise",False,"Redraw whole image",
-                        p.num,1,p.cfg_value,p.strength,seed,SDConfig.height,SDConfig.width,"Just resize","RealESRGAN",64,False,
-                        "Inpaint masked","None",False,8,4,"fill","Seed","","Steps",""
-                ]
-            }        
-
-
-    if (p.mode=="inpainting"):
-        # localhost
-        j={
-            "fn_index":8,
-            "data":[p.prompt,None,{"image":p.image64,"mask":p.maskImage64},p.steps,"Euler a",4,"latent noise",False,"Inpaint a part of image",p.num,1,p.cfg_value,0.75,seed,512,512,
-            "Just resize","RealESRGAN",64,False,"Inpaint masked","None",8,4,"fill",False,"Seed","","Steps",""]
-        }            
-        # colab
-        if (Colab):
-            j={
-                "fn_index":8,
-                "data":[p.prompt,None,{"image":p.image64,"mask":p.maskImage64},p.steps,"Euler a",4,"latent noise",False,"Inpaint a part of image",p.num,1,p.cfg_value,0.75,seed,512,512,
-                "Just resize","RealESRGAN",64,False,"Inpaint masked","None",False,8,4,"fill","Seed","","Steps",""]
-            }    
-   
-
-    if (p.mode=="txt2img"):
-        j={
-            "fn_index":2,
-            "data":[p.prompt,"",p.steps,p.sampling_method,False,p.num,1,p.cfg_value,seed,SDConfig.height,SDConfig.width,"None",False,"Seed","","Steps",""]
-        }           
+    j = {'prompt': p.prompt, \
+        'mode': p.mode, \
+        'initimage': {'image':p.image64, 'mask':p.maskImage64}, \
+        'steps':p.steps, \
+        'sampler':p.sampling_method, \
+        'mask_blur': SDConfig.inpaint_mask_blur, \
+        'inpainting_fill':p.inpaint_mask_content, \
+        'use_gfpgan': False, \
+        'batch_count': p.num, \
+        'cfg_scale': p.cfg_value, \
+        'denoising_strength': 1.0, \
+        'seed':seed, \
+        'height':SDConfig.height, \
+        'width':SDConfig.width, \
+        'resize_mode': 0, \
+        'upscaler':'RealESRGAN', \
+        'upscale_overlap':64, \
+        'inpaint_full_res':True, \
+        'inpainting_mask_invert': 0 \
+        }    
 
     #print(j)
     data = json.dumps(j).encode("utf-8")
@@ -603,17 +581,17 @@ def runSD(p: SDParameters):
     response=json.loads(res)
     images = [0]*p.num
     p.seedList=[0]*p.num
-    s=response["data"][1]
+    s=response["info"]
     info=json.loads(s)
 
     firstSeed=int(info["seed"])
     if (p.num==1):
-        data = response["data"][0][0] # first image
+        data = response["images"][0] # first image
         p.seedList[0]=str(int(firstSeed))
         images[0]=base64ToQImage(data)
     else:
         for i in range(0,p.num):
-            data = response["data"][0][i+1] # first image
+            data = response["images"][i+1] # first image
             p.seedList[i]=str(int(firstSeed)+i)
             images[i]=base64ToQImage(data)
     if (p.imageDialog):                 # only refresh image
@@ -688,8 +666,8 @@ def ImageToImage():
     image.save(buf, 'PNG')
     ba=data.toBase64()
     DataAsString=str(ba,"ascii")
-    image64 = "data:image/png;base64,"+DataAsString
-    
+    #image64 = "data:image/png;base64,"+DataAsString
+    image64 = DataAsString
     dlg = SDDialog("img2img",image)
     dlg.resize(900,200)
 
@@ -725,7 +703,8 @@ def Inpainting():
     image.save(buf, 'PNG')
     ba=data.toBase64()
     DataAsString=str(ba,"ascii")
-    image64 = "data:image/png;base64,"+DataAsString
+    #image64 = "data:image/png;base64,"+DataAsString
+    image64 = DataAsString
     
     maskImage=QPixmap(image.width(), image.height()).toImage()
     maskImage = maskImage.convertToFormat(QImage.Format_ARGB32)
@@ -753,7 +732,8 @@ def Inpainting():
     maskImage.save(buf, 'PNG')
     ba=data.toBase64()
     DataAsString=str(ba,"ascii")
-    maskImage64 = "data:image/png;base64,"+DataAsString
+    #maskImage64 = "data:image/png;base64,"+DataAsString
+    maskImage64 = DataAsString
     SDConfig.load(SDConfig)
     image = image.scaled(380,380, Qt.KeepAspectRatio, Qt.SmoothTransformation)  # preview smaller
     dlg = SDDialog("inpainting",image)
