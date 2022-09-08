@@ -40,7 +40,7 @@ class SDConfig:
     url = "http://localhost:7860"
     type="Colab"
     inpaint_mask_blur=4
-    inpaint_mask_content=2     
+    inpaint_mask_content="latent noise"     
     width=512
     height=512    
     dlgData={
@@ -53,7 +53,7 @@ class SDConfig:
         "modifiers": "highly detailed\n",
         "cfg_value": 7.5,
         "strength": .75,
-        "sampling_method":0
+        "sampling_method":"LMS"
     }
 
 
@@ -70,7 +70,7 @@ class SDConfig:
         self.type=obj.get("type","Colab")
         self.dlgData=obj["dlgData"]
         self.inpaint_mask_blur=obj.get("inpaint_mask_blur",4)
-        self.inpaint_mask_content=obj.get("inpaint_mask_content",2)
+        self.inpaint_mask_content=obj.get("inpaint_mask_content","latent noise")
         self.width=obj.get("width",512)
         self.height=obj.get("height",512)
     def save(self):
@@ -91,16 +91,15 @@ class SDParameters:
     steps = 0
     seed = 0
     num =0
-    sampling_method=0
+    sampling_method="LMS",
     seedList =["","","",""]
     imageDialog = None
     regenerate = False
     image64=""
     maskImage64=""
-    cfg_value=7.5
-    strength=0.0
+    sampling_method="LMS"
     inpaint_mask_blur=4
-    inpaint_mask_content=2 
+    inpaint_mask_content="latent noise" 
     mode="txt2img"    
 
 def errorMessage(text,detailed):
@@ -122,21 +121,22 @@ class SDConfigDialog(QDialog):
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
         self.layout = QVBoxLayout()
-        link_label=QLabel('Webservice URL<br>\nYou need running <a href="https://colab.research.google.com/drive/1BKkFN5OOXydrFAxYJcbPdGrVuQVdJpt_#scrollTo=bYpxm4Fw2tLT">Colab</a><br>\nCheck if web interface is working there before you use this plugin. Use https://xxx.gradio.app link here.')
+        link_label=QLabel('Webservice URL<br>\nYou need running <a href="https://colab.research.google.com/drive/1eq-VF2dRHgxNjtPX5iZbDPuwtfJIEhtx#scrollTo=bYpxm4Fw2tLT">Colab with new API</a><br>\nCheck if web interface is working there before you use this plugin. Use http://xxxx.ngrok.io link here.')
         link_label.setOpenExternalLinks(True)
         self.layout.addWidget(link_label)
         self.url = QLineEdit()
         self.url.setText(SDConfig.url)    
         self.layout.addWidget(self.url)
-        self.layout.addWidget(QLabel('Type'))
-        self.type = QComboBox()
-        self.type.addItems(['Colab', 'Local'])
-        self.type.setCurrentText(SDConfig.type)
-        self.layout.addWidget(self.type,stretch=1)      
-        self.layout.addWidget(QLabel('For local experimental version you need this fork running <br> <a href="https://github.com/imperator-maximus/stable-diffusion-webui">imperator-maximus/stable-diffusion-webui</a><br>\nIf it gets connection error - this is known issue and I am working on it. If it works fine - let me know :)'))
+ #       self.layout.addWidget(QLabel('Type'))
+ #       self.type = QComboBox()
+ #       self.type.addItems(['Colab', 'Local'])
+#        self.type.setCurrentText(SDConfig.type)
+#        self.layout.addWidget(self.type,stretch=1)      
+        self.layout.addWidget(QLabel('For local version you need this fork running <br> <a href="https://github.com/imperator-maximus/stable-diffusion-webui">imperator-maximus/stable-diffusion-webui</a><br>\n start api.bat there'))
 
         self.layout.addWidget(QLabel(''))
         
+
         inpainting_label=QLabel('Inpainting options')
         inpainting_label.setToolTip('You can play around with these two values. Default is 4 and "latent noise"')
         self.layout.addWidget(inpainting_label)
@@ -149,7 +149,7 @@ class SDConfigDialog(QDialog):
         h_layout_inpaint.addWidget(QLabel('Masked Content:'),stretch=1)
         self.inpaint_mask_content = QComboBox()
         self.inpaint_mask_content.addItems(['fill', 'original', 'latent noise', 'latent nothing'])
-        self.inpaint_mask_content.setCurrentIndex(SDConfig.inpaint_mask_content)
+        self.inpaint_mask_content.setCurrentText(SDConfig.inpaint_mask_content)
         h_layout_inpaint.addWidget(self.inpaint_mask_content,stretch=1)      
         h_layout_inpaint.addWidget(QLabel(''),stretch=5)
 
@@ -178,10 +178,10 @@ class SDConfigDialog(QDialog):
     def save(self):
         SDConfig.url=self.url.text()
         SDConfig.inpaint_mask_blur=int(self.inpaint_mask_blur.text())
-        SDConfig.inpaint_mask_content=self.inpaint_mask_content.currentIndex()
+        SDConfig.inpaint_mask_content=self.inpaint_mask_content.currentText()
         SDConfig.width=int(self.width.text())
         SDConfig.height=int(self.height.text())
-        SDConfig.type=self.type.currentText()
+     #   SDConfig.type=self.type.currentText()
 
         SDConfig.save(SDConfig)
 
@@ -337,8 +337,8 @@ class SDDialog(QDialog):
         cfg_label.setToolTip("")
         formLayout.addWidget(cfg_label)           
         self.sampling_method = QComboBox()
-        self.sampling_method.addItems(['Euler a', 'Euler','LMS', 'Heun','DPM2','DPM2 a','DDIM','PLMS'])
-        self.sampling_method.setCurrentIndex(data.get("sampling_method", 0))
+        self.sampling_method.addItems(['LMS', 'Euler a', 'Euler', 'Heun','DPM2','DPM2 a','DDIM','PLMS'])
+        self.sampling_method.setCurrentText(data.get("sampling_method","LMS"))
         formLayout.addWidget(self.sampling_method)           
         formLayout.addWidget(QLabel(""))        
         formLayout.addWidget(self.buttonBox)
@@ -374,7 +374,7 @@ class SDDialog(QDialog):
         SDConfig.dlgData["num"]=int(self.num.value())
         SDConfig.dlgData["cfg_value"]=self.cfg_value.value()/10
         SDConfig.dlgData["modifiers"]=self.modifiers.toPlainText()
-        SDConfig.dlgData["sampling_method"]=self.sampling_method.currentIndex()
+        SDConfig.dlgData["sampling_method"]=self.sampling_method.currentText()
         
         if SDConfig.dlgData["mode"]=="img2img": 
             SDConfig.dlgData["strength"]=self.strength.value()/100
@@ -512,12 +512,11 @@ def imageResultDialog(qImgs,p):
     dlg = showImages(qImgs,p)
     if dlg.exec():
         print("HQ Update here")
-    else:
-        print("Cancel!")
-    return 3     
+
  
  # convert image from server result into QImage
 def base64ToQImage(data):
+  #   data=data.split(",")[1] # get rid of data:image/png,
      image64 = data.encode('ascii')
      imagen = QtGui.QImage()
      bytearr = QtCore.QByteArray.fromBase64( image64 )
@@ -546,6 +545,7 @@ def getServerData(reqData):
         errorMessage("Server Error","Endpoint: "+endpoint+", Reason: "+error_message)        
         return None
 
+
 def runSD(p: SDParameters):
     # dramatic interface change needed!
     Colab=True
@@ -559,11 +559,11 @@ def runSD(p: SDParameters):
         'steps':p.steps, \
         'sampler':p.sampling_method, \
         'mask_blur': SDConfig.inpaint_mask_blur, \
-        'inpainting_fill':p.inpaint_mask_content, \
+        'inpainting_fill':SDConfig.inpaint_mask_content, \
         'use_gfpgan': False, \
         'batch_count': p.num, \
         'cfg_scale': p.cfg_value, \
-        'denoising_strength': 1.0, \
+        'denoising_strength': p.strength, \
         'seed':seed, \
         'height':SDConfig.height, \
         'width':SDConfig.width, \
@@ -577,8 +577,9 @@ def runSD(p: SDParameters):
     #print(j)
     data = json.dumps(j).encode("utf-8")
     res=getServerData(data)
-    if not res: return
+    if not res: return    
     response=json.loads(res)
+  #  print(response)
     images = [0]*p.num
     p.seedList=[0]*p.num
     s=response["info"]
@@ -666,8 +667,9 @@ def ImageToImage():
     image.save(buf, 'PNG')
     ba=data.toBase64()
     DataAsString=str(ba,"ascii")
-    #image64 = "data:image/png;base64,"+DataAsString
+    image64 = "data:image/png;base64,"+DataAsString
     image64 = DataAsString
+    
     dlg = SDDialog("img2img",image)
     dlg.resize(900,200)
 
@@ -705,7 +707,7 @@ def Inpainting():
     DataAsString=str(ba,"ascii")
     #image64 = "data:image/png;base64,"+DataAsString
     image64 = DataAsString
-    
+
     maskImage=QPixmap(image.width(), image.height()).toImage()
     maskImage = maskImage.convertToFormat(QImage.Format_ARGB32)
     # generate mask image
@@ -732,8 +734,8 @@ def Inpainting():
     maskImage.save(buf, 'PNG')
     ba=data.toBase64()
     DataAsString=str(ba,"ascii")
-    #maskImage64 = "data:image/png;base64,"+DataAsString
-    maskImage64 = DataAsString
+   # maskImage64 = "data:image/png;base64,"+DataAsString
+    maskImage64 =DataAsString
     SDConfig.load(SDConfig)
     image = image.scaled(380,380, Qt.KeepAspectRatio, Qt.SmoothTransformation)  # preview smaller
     dlg = SDDialog("inpainting",image)
@@ -779,3 +781,4 @@ def expandSelection():
 #ImageToImage()
 #Config()
 #expandSelection()
+
